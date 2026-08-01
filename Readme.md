@@ -1,115 +1,109 @@
-# 3. Lock Down the API Contract
+# Trackwork — Bug Tracker API
 
-When building the frontend, you need to know **exactly** what endpoints exist, what payload to send, and what response to expect.
+REST API for a bug & ticket tracking system, built with Node.js, Express, and MongoDB. Supports JWT authentication, project/team management, defect (bug) reports with file attachments and comment threads, and a separate lightweight ticket/task board.
 
-Below is a quick reference map of the core API endpoints for the **Bug Tracker API**.
+## Tech stack
 
----
+- **Runtime:** Node.js (ESM) + Express 5
+- **Database:** MongoDB via Mongoose
+- **Auth:** JWT (access + refresh tokens, sent as httpOnly cookies and in the response body)
+- **File uploads:** Multer → Cloudinary
+- **Validation:** Zod (bug creation)
+- **Security:** Helmet, CORS
 
-# 🔐 Authentication Endpoints (`/api/auth`)
+## Getting started
 
-| Method   | Endpoint    | Access  | Request Body                      | Success Response                 |
-| -------- | ----------- | ------- | --------------------------------- | -------------------------------- |
-| **POST** | `/register` | Public  | `{ name, email, password, role }` | `{ success: true, token, user }` |
-| **POST** | `/login`    | Public  | `{ email, password }`             | `{ success: true, token, user }` |
-| **GET**  | `/me`       | Private | `Authorization: Bearer <token>`   | `{ success: true, data: user }`  |
+```bash
+npm install
+cp .env.example .env   # fill in the values below
+npm run dev             # nodemon src/index.js
+```
 
----
+The server logs its port and Mongo connection status on boot.
 
-# 📁 Project Endpoints (`/api/projects`)
+### Environment variables
 
-| Method     | Endpoint | Access               | Description                                           |
-| ---------- | -------- | -------------------- | ----------------------------------------------------- |
-| **GET**    | `/`      | Private              | Get all projects the authenticated user has access to |
-| **POST**   | `/`      | Admin / Project Lead | Create a new project                                  |
-| **GET**    | `/:id`   | Private              | Get details of a specific project                     |
-| **PUT**    | `/:id`   | Admin / Project Lead | Update project information                            |
-| **DELETE** | `/:id`   | Admin                | Delete a project                                      |
+| Variable                                                                 | Description                                                   |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `PORT`                                                                   | Port the server listens on                                    |
+| `CORS_ORIGIN`                                                            | Origin allowed to call the API (e.g. your frontend's dev URL) |
+| `MONGODB_URI`                                                            | MongoDB connection string                                     |
+| `NODE_ENV`                                                               | `development` / `production`                                  |
+| `ACCESS_TOKEN_SECRET` / `ACCESS_TOKEN_EXPIRY`                            | JWT access token secret + lifetime                            |
+| `REFRESH_TOKEN_SECRET` / `REFRESH_TOKEN_EXPIRY`                          | JWT refresh token secret + lifetime                           |
+| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Cloudinary credentials for bug attachment uploads             |
 
----
+## API overview
 
-# 👥 Team Member Endpoints (`/api/projects/:projectId/members`)
+Base URL: `/api/v1`
 
-| Method     | Endpoint     | Access               | Description                    |
-| ---------- | ------------ | -------------------- | ------------------------------ |
-| **GET**    | `/`          | Private              | Get all members of a project   |
-| **POST**   | `/`          | Admin / Project Lead | Add a member to a project      |
-| **PUT**    | `/:memberId` | Admin / Project Lead | Update a member's role         |
-| **DELETE** | `/:memberId` | Admin / Project Lead | Remove a member from a project |
+### Auth — `/auth`
 
----
+| Method | Route       | Description                                                             |
+| ------ | ----------- | ----------------------------------------------------------------------- |
+| POST   | `/register` | `{ username, email, fullname, password, role? }`                        |
+| POST   | `/login`    | `{ email\|username, password }` → `{ user, accessToken, refreshToken }` |
 
-# 🐛 Bug Endpoints (`/api/bugs`)
+### Projects — `/projects` _(JWT required)_
 
-| Method     | Endpoint | Access            | Description                                                         |
-| ---------- | -------- | ----------------- | ------------------------------------------------------------------- |
-| **GET**    | `/`      | Private           | Get filtered & paginated bugs (`?status=Open&priority=High&page=1`) |
-| **POST**   | `/`      | Private           | Create a new bug ticket                                             |
-| **GET**    | `/:id`   | Private           | Get a single bug with comments and attachments                      |
-| **PUT**    | `/:id`   | Developer / Admin | Update status, priority, assignee, or other editable fields         |
-| **DELETE** | `/:id`   | Admin             | Delete a bug ticket                                                 |
+| Method | Route                           | Description                                                      |
+| ------ | ------------------------------- | ---------------------------------------------------------------- |
+| POST   | `/`                             | Create a project                                                 |
+| GET    | `/`                             | List projects you own or are a member of                         |
+| PATCH  | `/:projectId`                   | Update name/description (owner only)                             |
+| DELETE | `/:projectId`                   | Delete a project (owner only)                                    |
+| POST   | `/:projectId/members`           | Add a member by `{ identifier }` (username or email, owner only) |
+| DELETE | `/:projectId/members/:memberId` | Remove a member (owner only)                                     |
 
----
+### Bugs — defect reports with attachments + comments
 
-# 💬 Comment Endpoints (`/api/bugs/:bugId/comments`)
+| Method | Route                               | Description                                                                                      |
+| ------ | ----------------------------------- | ------------------------------------------------------------------------------------------------ |
+| POST   | `/projects/:projectId/bugs`         | Create (multipart, up to 5 `attachments` files) — `{ title, description, priority, assignedTo }` |
+| GET    | `/projects/:projectId/bugs`         | List — query: `page, limit, status, priority, search, sortBy, sortOrder`                         |
+| GET    | `/projects/:projectId/bugs/summary` | Aggregate counts: total/open/in-progress/resolved/critical                                       |
+| GET    | `/bugs/:bugId`                      | Fetch one                                                                                        |
+| PATCH  | `/bugs/:bugId`                      | Update (status, priority, assignedTo, etc.)                                                      |
+| DELETE | `/bugs/:bugId`                      | Delete (creator or project owner only)                                                           |
 
-| Method     | Endpoint      | Access                | Description                |
-| ---------- | ------------- | --------------------- | -------------------------- |
-| **GET**    | `/`           | Private               | Get all comments for a bug |
-| **POST**   | `/`           | Private               | Add a comment to a bug     |
-| **PUT**    | `/:commentId` | Comment Owner / Admin | Edit a comment             |
-| **DELETE** | `/:commentId` | Comment Owner / Admin | Delete a comment           |
+Status enum: `OPEN / IN_PROGRESS / RESOLVED`. Priority enum: `LOW / MEDIUM / HIGH / CRITICAL`. `assignedTo` accepts a username or email and is resolved to a user ID server-side.
 
----
+### Tickets — lightweight task/work-item board
 
-# 📎 Attachment Endpoints (`/api/bugs/:bugId/attachments`)
+| Method | Route                         | Description                                          |
+| ------ | ----------------------------- | ---------------------------------------------------- |
+| POST   | `/tickets/project/:projectId` | Create — requires you to already be a project member |
+| GET    | `/tickets/project/:projectId` | List — query: `page, limit, status, priority`        |
+| GET    | `/tickets/:ticketId`          | Fetch one                                            |
+| PATCH  | `/tickets/:ticketId`          | Update                                               |
+| DELETE | `/tickets/:ticketId`          | Delete (creator or project owner only)               |
 
-| Method     | Endpoint         | Access        | Description                    |
-| ---------- | ---------------- | ------------- | ------------------------------ |
-| **POST**   | `/`              | Private       | Upload one or more attachments |
-| **GET**    | `/`              | Private       | Get all attachments for a bug  |
-| **DELETE** | `/:attachmentId` | Owner / Admin | Remove an attachment           |
+Status enum: `Open / In Progress / Under Review / Resolved`. Priority enum: `Low / Medium / High / Critical`. Note the different casing from Bugs — Bugs and Tickets are intentionally separate systems.
 
----
+### Comments — on bugs only
 
-<!-- # 🔔 Notification Endpoints (`/api/notifications`)
+| Method | Route                   | Description                   |
+| ------ | ----------------------- | ----------------------------- |
+| POST   | `/bugs/:bugId/comments` | Add a comment — `{ content }` |
+| GET    | `/bugs/:bugId/comments` | List comments on a bug        |
+| DELETE | `/comments/:commentId`  | Delete (author only)          |
 
-| Method  | Endpoint    | Access  | Description                      |
-| ------- | ----------- | ------- | -------------------------------- |
-| **GET** | `/`         | Private | Get current user's notifications |
-| **PUT** | `/:id/read` | Private | Mark a notification as read      |
-| **PUT** | `/read-all` | Private | Mark all notifications as read   | -->
+## Project structure
 
----
+```
+src/
+  app.js, index.js         Express app + entrypoint
+  routes/                  one router per resource
+  controllers/              request handling
+  services/                  business logic / DB queries
+  models/                    Mongoose schemas
+  middleware/               auth, role (project-owner), multer, error handling
+  validators/                Zod schemas
+  utils/                     ApiError, ApiResponse, asyncHandler, cloudinary, resolveUser
+```
 
-# 📊 Dashboard & Analytics (`/api/dashboard`)
+## Known limitations
 
-| Method  | Endpoint                 | Access  | Description                                        |
-| ------- | ------------------------ | ------- | -------------------------------------------------- |
-| **GET** | `/stats`                 | Private | Get dashboard statistics using MongoDB aggregation |
-| **GET** | `/project-summary`       | Private | Get project-wise bug summary                       |
-| **GET** | `/developer-performance` | Admin   | Get developer workload and performance metrics     |
-| **GET** | `/recent-activity`       | Private | Get recent bug activity timeline                   |
-
----
-
-# 👤 User Endpoints (`/api/users`)
-
-| Method     | Endpoint | Access        | Description          |
-| ---------- | -------- | ------------- | -------------------- |
-| **GET**    | `/`      | Admin         | Get all users        |
-| **GET**    | `/:id`   | Private       | Get a user's profile |
-| **PUT**    | `/:id`   | Owner / Admin | Update user profile  |
-| **DELETE** | `/:id`   | Admin         | Delete a user        |
-
----
-
-<!--
-# 🏷️ Label & Category Endpoints (`/api/labels`)
-
-| Method     | Endpoint | Access  | Description        |
-| ---------- | -------- | ------- | ------------------ |
-| **GET**    | `/`      | Private | Get all labels     |
-| **POST**   | `/`      | Admin   | Create a new label |
-| **PUT**    | `/:id`   | Admin   | Update a label     |
-| **DELETE** | `/:id`   | Admin   | Delete a label     | -->
+- No global admin role enforcement yet — permissions are project-scoped (owner vs. member), not tied to a user's `role` field.
+- Deleting a project does not cascade-delete its bugs/tickets.
+- No user search/listing endpoint beyond the username/email lookup used internally for adding members and assigning bugs/tickets.
