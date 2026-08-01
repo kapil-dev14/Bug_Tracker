@@ -1,6 +1,7 @@
 import {
   createBugService,
   getProjectBugsService,
+  getBugByIdService,
   updateBugService,
   deleteBugService,
   getProjectSummaryService,
@@ -59,6 +60,24 @@ export const getProjectBugs = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, result, "Project bugs fetched successfully"));
 });
+
+// @desc    Get a single bug by id (with comments' bug detail, populated)
+// @route   GET /api/v1/bugs/:bugId
+export const getBugById = async (req, res, next) => {
+  try {
+    const { bugId } = req.params;
+    const bug = await getBugByIdService(bugId);
+
+    return res.status(200).json({
+      statusCode: 200,
+      success: true,
+      message: "Bug fetched successfully",
+      data: bug,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // @desc    Update bug status or details
 // @route   PATCH /api/v1/bugs/:bugId

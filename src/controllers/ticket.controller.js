@@ -3,7 +3,9 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import {
   createTicketService,
   getProjectTicketsService,
+  getTicketByIdService,
   updateTicketService,
+  deleteTicketService,
 } from "../services/ticket.service.js";
 
 export const createTicket = asyncHandler(async (req, res) => {
@@ -39,6 +41,26 @@ export const getProjectTickets = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, data, "Tickets retrieved successfully"));
+});
+
+export const getTicketById = asyncHandler(async (req, res) => {
+  const { ticketId } = req.params;
+
+  const ticket = await getTicketByIdService(ticketId);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, ticket, "Ticket fetched successfully"));
+});
+
+export const deleteTicket = asyncHandler(async (req, res) => {
+  const { ticketId } = req.params;
+
+  await deleteTicketService({ ticketId, userId: req.user._id });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, null, "Ticket deleted successfully"));
 });
 
 export const updateTicket = asyncHandler(async (req, res) => {

@@ -15,7 +15,7 @@ export const createBugSchema = z.object({
       .optional()
       .default("MEDIUM"),
     status: z
-      .enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"])
+      .enum(["OPEN", "IN_PROGRESS", "RESOLVED"])
       .optional()
       .default("OPEN"),
   }),

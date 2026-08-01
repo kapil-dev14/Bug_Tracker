@@ -1,6 +1,7 @@
 import mongoose from "mongoose"; // <-- Fix for mongoose.Types.ObjectId in summary service
 import { Bug } from "../models/bug.model.js";
 import { Project } from "../models/project.model.js";
+import { resolveUserId } from "../utils/resolveUser.js";
 
 export const createBugService = async ({
   title,
@@ -19,13 +20,14 @@ export const createBugService = async ({
     throw error;
   }
 
-  // 2. Create the new bug entry
+  // 2. Create the new bug entry (assignedTo may be a username/email typed
+  // in the frontend, so resolve it to a real user _id first)
   const bug = await Bug.create({
     title,
     description,
     priority,
     project: projectId,
-    assignedTo,
+    assignedTo: await resolveUserId(assignedTo),
     createdBy,
     attachments, // <-- 2. Save attachment URLs into the document
   });
@@ -87,7 +89,26 @@ export const getProjectBugsService = async (projectId, queryParams) => {
   };
 };
 
+export const getBugByIdService = async (bugId) => {
+  const bug = await Bug.findById(bugId)
+    .populate("assignedTo", "username email fullname")
+    .populate("createdBy", "username email fullname")
+    .populate("project", "name");
+
+  if (!bug) {
+    const error = new Error("Bug not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return bug;
+};
+
 export const updateBugService = async (bugId, updateData) => {
+  if (updateData.assignedTo !== undefined) {
+    updateData.assignedTo = await resolveUserId(updateData.assignedTo);
+  }
+
   const bug = await Bug.findByIdAndUpdate(
     bugId,
     { $set: updateData },

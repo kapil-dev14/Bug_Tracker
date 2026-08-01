@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   createBug,
   getProjectBugs,
+  getBugById,
   updateBug,
   deleteBug,
   getProjectSummary,
@@ -33,6 +34,10 @@ router
   .get(getProjectBugs);
 
 // Individual bug routes
-router.route("/:bugId").patch(updateBug).delete(canDeleteBug, deleteBug);
+router
+  .route("/:bugId")
+  .get(getBugById)
+  .patch(updateBug)
+  .delete(canDeleteBug, deleteBug);
 
 export default router;
