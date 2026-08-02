@@ -6,9 +6,10 @@ import {
   deleteBugService,
   getProjectSummaryService,
 } from "../services/bug.service.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js"; // <-- 1. Import Cloudinary utility
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { ApiError } from "../utils/ApiError.js";
 
 // @desc    Create a new bug under a project (with optional file attachments)
 // @route   POST /api/v1/projects/:projectId/bugs
@@ -17,16 +18,16 @@ export const createBug = async (req, res, next) => {
     const { projectId } = req.params;
     const { title, description, priority, assignedTo } = req.body;
 
-    // 2. Process uploaded files from Multer and upload to Cloudinary
+    // upload.fields() puts files under req.files.<fieldName>, not req.files
+    // directly - and attachments are optional, so default to an empty array
+    const files = req.files?.attachments || [];
+
     const attachmentUrls = [];
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        const url = await uploadOnCloudinary(file.path);
-        if (url) attachmentUrls.push(url);
-      }
+    for (const file of files) {
+      const url = await uploadOnCloudinary(file.path);
+      if (url) attachmentUrls.push(url);
     }
 
-    // 3. Pass body + attachment URLs to service layer
     const bug = await createBugService({
       title,
       description,
@@ -34,7 +35,7 @@ export const createBug = async (req, res, next) => {
       projectId,
       assignedTo,
       createdBy: req.user._id,
-      attachments: attachmentUrls, // <-- Pass uploaded Cloudinary URLs
+      attachments: attachmentUrls,
     });
 
     return res.status(201).json({

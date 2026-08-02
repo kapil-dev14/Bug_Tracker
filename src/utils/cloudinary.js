@@ -21,6 +21,9 @@ export const uploadOnCloudinary = async (localFilePath) => {
     fs.unlinkSync(localFilePath);
     return response.url;
   } catch (error) {
+    // Log the real reason so failures aren't silent (bad credentials,
+    // invalid file, network issue, etc. all look identical otherwise)
+    console.error("Cloudinary upload failed:", error.message);
     // Remove local temp file if upload failed
     if (fs.existsSync(localFilePath)) {
       fs.unlinkSync(localFilePath);
